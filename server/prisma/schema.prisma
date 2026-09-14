@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime  @default(now())
+  bookings     Booking[]
+}
+
+enum PaymentStatus {
+  pending
+  partial
+  paid
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientName    String
+  venue         String
+  eventDate     DateTime      @db.Date
+  startTime     String
+  endTime       String
+  totalAmount   Float
+  advanceAmount Float         @default(0)
+  paymentStatus PaymentStatus @default(pending)
+  completed     Boolean       @default(false)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId, eventDate])
+}

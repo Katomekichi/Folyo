@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: folyo
+      POSTGRES_PASSWORD: folyo
+      POSTGRES_DB: folyo
+    ports:
+      - '5432:5432'
+    volumes:
+      - folyo-db-data:/var/lib/postgresql/data
+
+volumes:
+  folyo-db-data:
