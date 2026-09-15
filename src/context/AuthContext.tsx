@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, getToken, setToken } from '../lib/api';
+import { api, ApiError, getToken, setToken } from '../lib/api';
 
 interface AuthUser {
   id: string;
@@ -30,7 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api
       .get<{ user: AuthUser }>('/api/auth/me')
       .then(({ user }) => setUser(user))
-      .catch(() => setToken(null))
+      .catch((err) => {
+        // Only drop the session when the server actually rejected the token.
+        // Network errors (server unreachable, timeout, etc.) shouldn't force a re-login.
+        if (err instanceof ApiError && err.status === 401) {
+          setToken(null);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 

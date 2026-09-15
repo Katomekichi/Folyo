@@ -479,3 +479,134 @@ input, textarea {
 .status-pending {
   color: #dc2626;
 }
+
+/* Responsive breakpoints */
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 0 16px 48px;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 0 12px 40px;
+  }
+
+  .site-header {
+    padding: 16px 0;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 20px;
+  }
+
+  .dashboard-header button {
+    width: 100%;
+  }
+
+  .summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-panel {
+    padding: 16px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .form-actions,
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-actions button,
+  .modal-actions button {
+    width: 100%;
+  }
+
+  .tab-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex: none;
+    white-space: nowrap;
+    padding: 10px 12px;
+  }
+
+  .ledger-table {
+    font-size: 13px;
+  }
+
+  .ledger-table th,
+  .ledger-table td {
+    padding: 8px 10px;
+  }
+
+  .calendar-nav h2 {
+    font-size: 15px;
+  }
+
+  .calendar-grid {
+    gap: 4px;
+  }
+
+  .calendar-cell {
+    min-height: 36px;
+  }
+
+  .calendar-day-num {
+    font-size: 12px;
+  }
+
+  .calendar-dot {
+    font-size: 10px;
+  }
+
+  .calendar-booking-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .modal {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 400px) {
+  .summary-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .summary-value {
+    font-size: 18px;
+  }
+}

@@ -12,7 +12,7 @@ function getSecret(): string {
 }
 
 export function signToken(userId: string): string {
-  return jwt.sign({ sub: userId }, getSecret(), { expiresIn: '7d' });
+  return jwt.sign({ sub: userId }, getSecret(), { expiresIn: '30d' });
 }
 
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
