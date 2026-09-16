@@ -1,0 +1,89 @@
+import { Router } from 'express';
+import type { PaymentStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { requireAuth, type AuthedRequest } from '../middleware/auth';
+
+export const requestsRouter = Router();
+requestsRouter.use(requireAuth);
+
+function computeStatus(totalAmount: number, advanceAmount: number): PaymentStatus {
+  if (advanceAmount <= 0) return 'pending';
+  if (advanceAmount >= totalAmount) return 'paid';
+  return 'partial';
+}
+
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+requestsRouter.get('/', async (req: AuthedRequest, res) => {
+  const requests = await prisma.bookingRequest.findMany({
+    where: { userId: req.userId, status: 'pending' },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ requests });
+});
+
+interface ConfirmBody {
+  clientName?: string;
+  venue?: string;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  totalAmount?: number;
+  advanceAmount?: number;
+  notes?: string;
+}
+
+requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
+  const request = await prisma.bookingRequest.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+  if (request.status !== 'pending') return res.status(409).json({ error: 'Request was already handled' });
+
+  const body = req.body as ConfirmBody;
+  const clientName = body.clientName ?? request.clientName;
+  const venue = body.venue ?? request.venue ?? undefined;
+  const eventDate = body.eventDate ?? request.eventDate ?? undefined;
+  const startTime = body.startTime ?? request.startTime ?? undefined;
+  const endTime = body.endTime ?? request.endTime ?? undefined;
+  const totalAmount = body.totalAmount ?? request.totalAmount ?? undefined;
+  const advanceAmount = body.advanceAmount ?? request.advanceAmount ?? 0;
+  const notes = body.notes ?? request.notes ?? undefined;
+
+  if (!clientName || !venue || !eventDate || !startTime || !endTime || totalAmount === undefined) {
+    return res.status(400).json({ error: 'clientName, venue, eventDate, startTime, endTime, and totalAmount are required' });
+  }
+  if (Number.isNaN(Date.parse(eventDate))) return res.status(400).json({ error: 'eventDate must be a valid date' });
+  if (!TIME_RE.test(startTime)) return res.status(400).json({ error: 'startTime must be in HH:MM format' });
+  if (!TIME_RE.test(endTime)) return res.status(400).json({ error: 'endTime must be in HH:MM format' });
+  if (typeof totalAmount !== 'number' || totalAmount < 0) return res.status(400).json({ error: 'totalAmount must be a positive number' });
+  if (typeof advanceAmount !== 'number' || advanceAmount < 0) return res.status(400).json({ error: 'advanceAmount must be a positive number' });
+
+  const booking = await prisma.booking.create({
+    data: {
+      userId: req.userId!,
+      clientName: clientName.trim(),
+      venue: venue.trim(),
+      eventDate: new Date(eventDate),
+      startTime,
+      endTime,
+      totalAmount,
+      advanceAmount,
+      paymentStatus: computeStatus(totalAmount, advanceAmount),
+      notes: notes?.trim() || null,
+    },
+  });
+
+  await prisma.bookingRequest.update({
+    where: { id: request.id },
+    data: { status: 'confirmed', resultBookingId: booking.id },
+  });
+
+  res.status(201).json({ booking });
+});
+
+requestsRouter.delete('/:id', async (req: AuthedRequest, res) => {
+  const request = await prisma.bookingRequest.findFirst({ where: { id: req.params.id, userId: req.userId } });
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+
+  await prisma.bookingRequest.update({ where: { id: request.id }, data: { status: 'rejected' } });
+  res.status(204).end();
+});

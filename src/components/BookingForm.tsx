@@ -1,8 +1,20 @@
 import { useState, type FormEvent } from 'react';
-import type { Booking, BookingInput } from '../types';
+import type { BookingInput } from '../types';
+
+export interface BookingFormInitial {
+  clientName?: string | null;
+  venue?: string | null;
+  eventDate?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  totalAmount?: number | null;
+  advanceAmount?: number | null;
+  notes?: string | null;
+}
 
 interface BookingFormProps {
-  initial?: Booking;
+  initial?: BookingFormInitial;
+  submitLabel?: string;
   onSubmit: (input: BookingInput) => Promise<void>;
   onCancel: () => void;
 }
@@ -17,15 +29,17 @@ function addHours(time: string, hours: number): string {
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
-export function BookingForm({ initial, onSubmit, onCancel }: BookingFormProps) {
+export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: BookingFormProps) {
   const [clientName, setClientName] = useState(initial?.clientName ?? '');
   const [venue, setVenue] = useState(initial?.venue ?? '');
   const [eventDate, setEventDate] = useState(initial?.eventDate?.slice(0, 10) ?? '');
   const [startTime, setStartTime] = useState(initial?.startTime ?? '');
   const [endTime, setEndTime] = useState(initial?.endTime ?? '');
-  const [endTimeTouched, setEndTimeTouched] = useState(Boolean(initial));
-  const [totalAmount, setTotalAmount] = useState(initial ? String(initial.totalAmount) : '');
-  const [advanceAmount, setAdvanceAmount] = useState(initial ? String(initial.advanceAmount) : '0');
+  const [endTimeTouched, setEndTimeTouched] = useState(Boolean(initial?.endTime));
+  const [totalAmount, setTotalAmount] = useState(initial?.totalAmount != null ? String(initial.totalAmount) : '');
+  const [advanceAmount, setAdvanceAmount] = useState(
+    initial?.advanceAmount != null ? String(initial.advanceAmount) : '0',
+  );
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,7 +116,7 @@ export function BookingForm({ initial, onSubmit, onCancel }: BookingFormProps) {
           <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
         </label>
         <label>
-          Start time
+          Ready Time
           <input
             type="time"
             value={startTime}
@@ -110,10 +124,10 @@ export function BookingForm({ initial, onSubmit, onCancel }: BookingFormProps) {
             required
           />
         </label>
-        <label>
+        {/* <label>
           End time
           <input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} required />
-        </label>
+        </label> */}
       </div>
       <div className="form-row">
         <label>
@@ -144,7 +158,7 @@ export function BookingForm({ initial, onSubmit, onCancel }: BookingFormProps) {
       </label>
       <div className="form-actions">
         <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : initial ? 'Save changes' : 'Add booking'}
+          {submitting ? 'Saving…' : submitLabel ?? (initial ? 'Save changes' : 'Add booking')}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel}>
           Cancel

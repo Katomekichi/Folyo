@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import type { Booking, BookingInput, PaymentStatus } from '../types';
+import type { Booking, BookingInput, BookingRequest, PaymentStatus } from '../types';
 import { BookingForm } from '../components/BookingForm';
 import { BookingCalendar } from '../components/BookingCalendar';
 import { useAuth } from '../context/AuthContext';
@@ -51,10 +51,72 @@ export function Dashboard() {
   const [tab, setTab] = useState<Tab>('upcoming');
   const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
   const [actionTarget, setActionTarget] = useState<Booking | null>(null);
+  const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [reviewingRequest, setReviewingRequest] = useState<BookingRequest | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkSlug, setLinkSlug] = useState<string | null | undefined>(undefined);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     load();
+    loadRequests();
   }, []);
+
+  async function loadLink() {
+    try {
+      const data = await api.get<{ slug: string | null }>('/api/settings/booking-link');
+      setLinkSlug(data.slug);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Could not load your booking link');
+    }
+  }
+
+  function openLinkModal() {
+    setShowLinkModal(true);
+    setLinkError(null);
+    setLinkCopied(false);
+    if (linkSlug === undefined) loadLink();
+  }
+
+  async function handleGenerateLink() {
+    setLinkSubmitting(true);
+    setLinkError(null);
+    setLinkCopied(false);
+    try {
+      const data = await api.post<{ slug: string }>('/api/settings/booking-link/generate');
+      setLinkSlug(data.slug);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Could not create a booking link');
+    } finally {
+      setLinkSubmitting(false);
+    }
+  }
+
+  async function handleDisableLink() {
+    setLinkSubmitting(true);
+    setLinkError(null);
+    try {
+      await api.delete('/api/settings/booking-link');
+      setLinkSlug(null);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Could not disable your booking link');
+    } finally {
+      setLinkSubmitting(false);
+    }
+  }
+
+  async function handleCopyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard API can be unavailable — the link is still shown as
+      // selectable text, so this is a soft failure.
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -67,6 +129,29 @@ export function Dashboard() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadRequests() {
+    try {
+      const { requests } = await api.get<{ requests: BookingRequest[] }>('/api/requests');
+      setRequests(requests);
+    } catch {
+      // Non-critical — the ledger still works without booking requests loading.
+    }
+  }
+
+  async function handleConfirmRequest(input: BookingInput) {
+    if (!reviewingRequest) return;
+    const { booking } = await api.post<{ booking: Booking }>(`/api/requests/${reviewingRequest.id}/confirm`, input);
+    setBookings((prev) => [...prev, booking].sort((a, b) => a.eventDate.localeCompare(b.eventDate)));
+    setRequests((prev) => prev.filter((r) => r.id !== reviewingRequest.id));
+    setReviewingRequest(null);
+  }
+
+  async function handleDismissRequest(id: string) {
+    await api.delete(`/api/requests/${id}`);
+    setRequests((prev) => prev.filter((r) => r.id !== id));
+    if (reviewingRequest?.id === id) setReviewingRequest(null);
   }
 
   async function saveCreate(input: BookingInput) {
@@ -228,6 +313,53 @@ export function Dashboard() {
     );
   }
 
+  function renderLinkModal() {
+    const url = linkSlug ? `${window.location.origin}/book/${linkSlug}` : null;
+    return (
+      <div className="modal-overlay">
+        <div className="modal">
+          <h3>Booking request link</h3>
+          <p>
+            Share this link with customers so they can send you a booking request directly. Requests show up on
+            your dashboard for you to price and confirm — nothing is added to your ledger automatically.
+          </p>
+          {linkError && <p className="form-error">{linkError}</p>}
+          {linkSlug === undefined ? (
+            <p>Loading…</p>
+          ) : url ? (
+            <div className="settings-connected">
+              <input className="booking-link-field" value={url} readOnly onFocus={(e) => e.target.select()} />
+            </div>
+          ) : (
+            <p className="modal-hint">You don't have a booking link yet.</p>
+          )}
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setShowLinkModal(false)}>
+              Close
+            </button>
+            {url ? (
+              <>
+                <button type="button" className="btn-ghost btn-danger" onClick={handleDisableLink} disabled={linkSubmitting}>
+                  Disable
+                </button>
+                <button type="button" className="btn-ghost" onClick={handleGenerateLink} disabled={linkSubmitting}>
+                  Regenerate
+                </button>
+                <button type="button" onClick={() => handleCopyLink(url)} disabled={linkSubmitting}>
+                  {linkCopied ? 'Copied!' : 'Copy link'}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={handleGenerateLink} disabled={linkSubmitting}>
+                {linkSubmitting ? 'Creating…' : 'Create link'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderActionModal(target: Booking) {
     return (
       <div className="modal-overlay">
@@ -263,9 +395,14 @@ export function Dashboard() {
       <div className="dashboard-header">
         <h1>Welcome, {user?.name}</h1>
         {!showForm && !editing && (
-          <button type="button" onClick={() => setShowForm(true)}>
-            + Add booking
-          </button>
+          <div className="dashboard-header-actions">
+            <button type="button" className="btn-ghost" onClick={openLinkModal}>
+              Share booking link
+            </button>
+            <button type="button" onClick={() => setShowForm(true)}>
+              + Add booking
+            </button>
+          </div>
         )}
       </div>
 
@@ -287,6 +424,45 @@ export function Dashboard() {
           <span className="summary-value warning">{formatMoney(summary.due)}</span>
         </div>
       </div>
+
+      {requests.length > 0 && !reviewingRequest && (
+        <div className="form-panel draft-panel">
+          <h2>Booking requests ({requests.length})</h2>
+          <ul className="draft-list">
+            {requests.map((r) => (
+              <li key={r.id} className="draft-item">
+                <div className="draft-summary">
+                  <strong>{r.clientName}</strong>
+                  <span>{r.clientContact}</span>
+                  <span>{r.venue ?? 'Venue not given'}</span>
+                  <span>{r.eventDate ?? 'Date not given'}</span>
+                </div>
+                <div className="draft-actions">
+                  <button type="button" className="btn-ghost" onClick={() => setReviewingRequest(r)}>
+                    Review
+                  </button>
+                  <button type="button" className="btn-ghost btn-danger" onClick={() => handleDismissRequest(r.id)}>
+                    Dismiss
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {reviewingRequest && (
+        <div className="form-panel">
+          <h2>Confirm booking request</h2>
+          {reviewingRequest.notes && <p className="settings-hint">Customer notes: "{reviewingRequest.notes}"</p>}
+          <BookingForm
+            initial={reviewingRequest}
+            submitLabel="Confirm booking"
+            onSubmit={handleConfirmRequest}
+            onCancel={() => setReviewingRequest(null)}
+          />
+        </div>
+      )}
 
       {showForm && (
         <div className="form-panel">
@@ -320,6 +496,7 @@ export function Dashboard() {
 
       {pendingSave && renderConflictModal(pendingSave)}
       {actionTarget && renderActionModal(actionTarget)}
+      {showLinkModal && renderLinkModal()}
     </div>
   );
 }

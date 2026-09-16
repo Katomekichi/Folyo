@@ -8,12 +8,14 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime  @default(now())
-  bookings     Booking[]
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String
+  name           String
+  createdAt      DateTime        @default(now())
+  bookings       Booking[]
+  bookingRequests BookingRequest[]
+  publicSlug     String?         @unique
 }
 
 enum PaymentStatus {
@@ -40,4 +42,33 @@ model Booking {
   updatedAt     DateTime      @updatedAt
 
   @@index([userId, eventDate])
+}
+
+enum RequestStatus {
+  pending
+  confirmed
+  rejected
+}
+
+// A booking submitted by a customer through the creator's public booking-request
+// link. Held for the creator to price and confirm before it becomes a real Booking.
+model BookingRequest {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          RequestStatus @default(pending)
+  clientName      String
+  clientContact   String
+  clientEmail     String?
+  venue           String?
+  eventDate       String?
+  startTime       String?
+  endTime         String?
+  totalAmount     Float?
+  advanceAmount   Float?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  resultBookingId String?
+
+  @@index([userId, status])
 }

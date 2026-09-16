@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
+import { PublicBookingRequest } from './pages/PublicBookingRequest';
 import './App.css';
 
 function Header() {
@@ -42,26 +43,36 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function AppShell() {
+  const location = useLocation();
+  const isPublicBookingPage = location.pathname.startsWith('/book/');
+
+  return (
+    <div className="app-shell">
+      {!isPublicBookingPage && <Header />}
+      <main>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/book/:slug" element={<PublicBookingRequest />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
-      <div className="app-shell">
-        <Header />
-        <main>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-          </Routes>
-        </main>
-      </div>
+      <AppShell />
     </AuthProvider>
   );
 }
