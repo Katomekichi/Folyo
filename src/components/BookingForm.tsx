@@ -6,7 +6,6 @@ export interface BookingFormInitial {
   venue?: string | null;
   eventDate?: string | null;
   startTime?: string | null;
-  endTime?: string | null;
   totalAmount?: number | null;
   advanceAmount?: number | null;
   notes?: string | null;
@@ -34,8 +33,6 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
   const [venue, setVenue] = useState(initial?.venue ?? '');
   const [eventDate, setEventDate] = useState(initial?.eventDate?.slice(0, 10) ?? '');
   const [startTime, setStartTime] = useState(initial?.startTime ?? '');
-  const [endTime, setEndTime] = useState(initial?.endTime ?? '');
-  const [endTimeTouched, setEndTimeTouched] = useState(Boolean(initial?.endTime));
   const [totalAmount, setTotalAmount] = useState(initial?.totalAmount != null ? String(initial.totalAmount) : '');
   const [advanceAmount, setAdvanceAmount] = useState(
     initial?.advanceAmount != null ? String(initial.advanceAmount) : '0',
@@ -43,18 +40,6 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  function handleStartTimeChange(value: string) {
-    setStartTime(value);
-    if (!endTimeTouched && value) {
-      setEndTime(addHours(value, 3));
-    }
-  }
-
-  // function handleEndTimeChange(value: string) {
-  //   setEndTime(value);
-  //   setEndTimeTouched(true);
-  // }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -67,8 +52,8 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
       setError('Client name, venue, and date are required');
       return;
     }
-    if (!startTime || !endTime) {
-      setError('Start time and end time are required');
+    if (!startTime) {
+      setError('Start time is required');
       return;
     }
     if (Number.isNaN(total) || total < 0) {
@@ -87,7 +72,7 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
         venue: venue.trim(),
         eventDate,
         startTime,
-        endTime,
+        endTime: addHours(startTime, 3),
         totalAmount: total,
         advanceAmount: advance,
         notes: notes.trim() || undefined,
@@ -120,14 +105,10 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
           <input
             type="time"
             value={startTime}
-            onChange={(e) => handleStartTimeChange(e.target.value)}
+            onChange={(e) => setStartTime(e.target.value)}
             required
           />
         </label>
-        {/* <label>
-          End time
-          <input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} required />
-        </label> */}
       </div>
       <div className="form-row">
         <label>
