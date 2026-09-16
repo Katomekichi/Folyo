@@ -51,10 +51,10 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
     }
   }
 
-  function handleEndTimeChange(value: string) {
-    setEndTime(value);
-    setEndTimeTouched(true);
-  }
+  // function handleEndTimeChange(value: string) {
+  //   setEndTime(value);
+  //   setEndTimeTouched(true);
+  // }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
