@@ -20,6 +20,7 @@ export function PublicBookingRequest() {
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [website, setWebsite] = useState(''); // honeypot — left blank by real people
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     if (!slug) return;
@@ -42,12 +43,24 @@ export function PublicBookingRequest() {
       setError('Enter a valid email address');
       return;
     }
+    if (!/^\d{10}$/.test(clientContact.trim())) {
+      setError('Enter a valid 10-digit phone number');
+      return;
+    }
     if (Number.isNaN(Number(totalAmount)) || Number(totalAmount) < 0) {
       setError('Total amount must be a valid positive number');
       return;
     }
     if (Number.isNaN(Number(advanceAmount)) || Number(advanceAmount) < 0) {
       setError('Advance amount must be a valid positive number');
+      return;
+    }
+    if (Number(advanceAmount) > Number(totalAmount)) {
+      setError('Advance amount cannot be greater than total amount');
+      return;
+    }
+    if (eventDate < todayStr) {
+      setError('Event date cannot be in the past');
       return;
     }
 
@@ -101,8 +114,16 @@ export function PublicBookingRequest() {
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} required />
         </label>
         <label>
-          Phone or email
-          <input value={clientContact} onChange={(e) => setClientContact(e.target.value)} required />
+          Phone
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="\d{10}"
+            value={clientContact}
+            onChange={(e) => setClientContact(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            required
+          />
         </label>
         <label>
           Email
@@ -115,7 +136,13 @@ export function PublicBookingRequest() {
         <div className="form-row">
           <label>
             Event date
-            <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
+            <input
+              type="date"
+              min={todayStr}
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              required
+            />
           </label>
           <label>
             Ready Time

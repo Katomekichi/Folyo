@@ -40,6 +40,7 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -52,6 +53,10 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
       setError('Client name, venue, and date are required');
       return;
     }
+    if (!initial && eventDate < todayStr) {
+      setError('Event date cannot be in the past');
+      return;
+    }
     if (!startTime) {
       setError('Start time is required');
       return;
@@ -62,6 +67,10 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
     }
     if (Number.isNaN(advance) || advance < 0) {
       setError('Advance amount must be a valid positive number');
+      return;
+    }
+    if (advance > total) {
+      setError('Advance amount cannot be greater than total amount');
       return;
     }
 
@@ -98,7 +107,13 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
       <div className="form-row">
         <label>
           Event date
-          <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
+          <input
+            type="date"
+            min={initial ? undefined : todayStr}
+            value={eventDate}
+            onChange={(e) => setEventDate(e.target.value)}
+            required
+          />
         </label>
         <label>
           Ready Time
