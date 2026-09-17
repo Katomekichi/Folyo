@@ -22,6 +22,11 @@ requestsRouter.get('/', async (req: AuthedRequest, res) => {
   res.json({ requests });
 });
 
+interface TeamMemberInput {
+  name?: string;
+  amount?: number;
+}
+
 interface ConfirmBody {
   clientName?: string;
   venue?: string;
@@ -30,7 +35,9 @@ interface ConfirmBody {
   endTime?: string;
   totalAmount?: number;
   advanceAmount?: number;
+  travelExpense?: number;
   notes?: string;
+  teamMembers?: TeamMemberInput[];
 }
 
 requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
@@ -46,6 +53,7 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
   const endTime = body.endTime ?? request.endTime ?? undefined;
   const totalAmount = body.totalAmount ?? request.totalAmount ?? undefined;
   const advanceAmount = body.advanceAmount ?? request.advanceAmount ?? 0;
+  const travelExpense = body.travelExpense ?? 0;
   const notes = body.notes ?? request.notes ?? undefined;
 
   if (!clientName || !venue || !eventDate || !startTime || !endTime || totalAmount === undefined) {
@@ -56,6 +64,15 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
   if (!TIME_RE.test(endTime)) return res.status(400).json({ error: 'endTime must be in HH:MM format' });
   if (typeof totalAmount !== 'number' || totalAmount < 0) return res.status(400).json({ error: 'totalAmount must be a positive number' });
   if (typeof advanceAmount !== 'number' || advanceAmount < 0) return res.status(400).json({ error: 'advanceAmount must be a positive number' });
+  if (typeof travelExpense !== 'number' || travelExpense < 0) return res.status(400).json({ error: 'travelExpense must be a positive number' });
+  const teamMembers = body.teamMembers ?? [];
+  if (!Array.isArray(teamMembers)) return res.status(400).json({ error: 'teamMembers must be an array' });
+  for (const member of teamMembers) {
+    if (!member.name?.trim()) return res.status(400).json({ error: 'Each team member needs a name' });
+    if (typeof member.amount !== 'number' || member.amount < 0) {
+      return res.status(400).json({ error: 'Each team member amount must be a positive number' });
+    }
+  }
 
   const booking = await prisma.booking.create({
     data: {
@@ -67,9 +84,14 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
       endTime,
       totalAmount,
       advanceAmount,
+      travelExpense,
       paymentStatus: computeStatus(totalAmount, advanceAmount),
       notes: notes?.trim() || null,
+      teamMembers: {
+        create: teamMembers.map((m) => ({ name: m.name!.trim(), amount: m.amount! })),
+      },
     },
+    include: { teamMembers: true },
   });
 
   await prisma.bookingRequest.update({

@@ -20,8 +20,6 @@ interface RequestBody {
   venue?: string;
   eventDate?: string;
   startTime?: string;
-  totalAmount?: number;
-  advanceAmount?: number;
   notes?: string;
   // Honeypot field — real users never fill this in; bots that fill every
   // input do, so treat it as a signal without telling them why it failed.
@@ -49,9 +47,7 @@ publicRouter.post('/:slug/requests', async (req, res) => {
     !body.clientEmail?.trim() ||
     !body.venue?.trim() ||
     !body.eventDate ||
-    !body.startTime ||
-    body.totalAmount === undefined ||
-    body.advanceAmount === undefined
+    !body.startTime
   ) {
     return res.status(400).json({ error: 'All fields are required except notes' });
   }
@@ -64,12 +60,6 @@ publicRouter.post('/:slug/requests', async (req, res) => {
   if (!TIME_RE.test(body.startTime)) {
     return res.status(400).json({ error: 'startTime must be in HH:MM format' });
   }
-  if (typeof body.totalAmount !== 'number' || body.totalAmount < 0) {
-    return res.status(400).json({ error: 'totalAmount must be a positive number' });
-  }
-  if (typeof body.advanceAmount !== 'number' || body.advanceAmount < 0) {
-    return res.status(400).json({ error: 'advanceAmount must be a positive number' });
-  }
 
   await prisma.bookingRequest.create({
     data: {
@@ -80,8 +70,6 @@ publicRouter.post('/:slug/requests', async (req, res) => {
       venue: body.venue.trim(),
       eventDate: body.eventDate,
       startTime: body.startTime,
-      totalAmount: body.totalAmount,
-      advanceAmount: body.advanceAmount,
       notes: body.notes?.trim() || null,
     },
   });

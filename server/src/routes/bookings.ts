@@ -12,6 +12,11 @@ function computeStatus(totalAmount: number, advanceAmount: number): PaymentStatu
   return 'partial';
 }
 
+interface TeamMemberInput {
+  name?: string;
+  amount?: number;
+}
+
 interface BookingInput {
   clientName?: string;
   venue?: string;
@@ -20,14 +25,16 @@ interface BookingInput {
   endTime?: string;
   totalAmount?: number;
   advanceAmount?: number;
+  travelExpense?: number;
   notes?: string;
   completed?: boolean;
+  teamMembers?: TeamMemberInput[];
 }
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function validate(body: BookingInput, requireAll: boolean) {
-  const { clientName, venue, eventDate, startTime, endTime, totalAmount, advanceAmount } = body;
+  const { clientName, venue, eventDate, startTime, endTime, totalAmount, advanceAmount, travelExpense, teamMembers } = body;
 
   if (requireAll && (!clientName || !venue || !eventDate || !startTime || !endTime || totalAmount === undefined)) {
     return 'clientName, venue, eventDate, startTime, endTime, and totalAmount are required';
@@ -37,6 +44,9 @@ function validate(body: BookingInput, requireAll: boolean) {
   }
   if (advanceAmount !== undefined && (typeof advanceAmount !== 'number' || advanceAmount < 0)) {
     return 'advanceAmount must be a positive number';
+  }
+  if (travelExpense !== undefined && (typeof travelExpense !== 'number' || travelExpense < 0)) {
+    return 'travelExpense must be a positive number';
   }
   if (eventDate !== undefined && Number.isNaN(Date.parse(eventDate))) {
     return 'eventDate must be a valid date';
@@ -50,6 +60,13 @@ function validate(body: BookingInput, requireAll: boolean) {
   if (body.completed !== undefined && typeof body.completed !== 'boolean') {
     return 'completed must be a boolean';
   }
+  if (teamMembers !== undefined) {
+    if (!Array.isArray(teamMembers)) return 'teamMembers must be an array';
+    for (const member of teamMembers) {
+      if (!member.name?.trim()) return 'Each team member needs a name';
+      if (typeof member.amount !== 'number' || member.amount < 0) return 'Each team member amount must be a positive number';
+    }
+  }
   return null;
 }
 
@@ -57,6 +74,7 @@ bookingsRouter.get('/', async (req: AuthedRequest, res) => {
   const bookings = await prisma.booking.findMany({
     where: { userId: req.userId },
     orderBy: { eventDate: 'asc' },
+    include: { teamMembers: true },
   });
   res.json({ bookings });
 });
@@ -68,6 +86,7 @@ bookingsRouter.post('/', async (req: AuthedRequest, res) => {
 
   const totalAmount = body.totalAmount!;
   const advanceAmount = body.advanceAmount ?? 0;
+  const travelExpense = body.travelExpense ?? 0;
 
   const booking = await prisma.booking.create({
     data: {
@@ -79,9 +98,14 @@ bookingsRouter.post('/', async (req: AuthedRequest, res) => {
       endTime: body.endTime!,
       totalAmount,
       advanceAmount,
+      travelExpense,
       paymentStatus: computeStatus(totalAmount, advanceAmount),
       notes: body.notes?.trim() || null,
+      teamMembers: {
+        create: (body.teamMembers ?? []).map((m) => ({ name: m.name!.trim(), amount: m.amount! })),
+      },
     },
+    include: { teamMembers: true },
   });
   res.status(201).json({ booking });
 });
@@ -96,6 +120,7 @@ bookingsRouter.patch('/:id', async (req: AuthedRequest, res) => {
 
   const totalAmount = body.totalAmount ?? existing.totalAmount;
   const advanceAmount = body.advanceAmount ?? existing.advanceAmount;
+  const travelExpense = body.travelExpense ?? existing.travelExpense;
 
   const booking = await prisma.booking.update({
     where: { id: existing.id },
@@ -107,10 +132,18 @@ bookingsRouter.patch('/:id', async (req: AuthedRequest, res) => {
       endTime: body.endTime ?? existing.endTime,
       totalAmount,
       advanceAmount,
+      travelExpense,
       paymentStatus: computeStatus(totalAmount, advanceAmount),
       notes: body.notes !== undefined ? body.notes.trim() || null : existing.notes,
       completed: body.completed ?? existing.completed,
+      ...(body.teamMembers !== undefined && {
+        teamMembers: {
+          deleteMany: {},
+          create: body.teamMembers.map((m) => ({ name: m.name!.trim(), amount: m.amount! })),
+        },
+      }),
     },
+    include: { teamMembers: true },
   });
   res.json({ booking });
 });

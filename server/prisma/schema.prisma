@@ -35,13 +35,27 @@ model Booking {
   endTime       String
   totalAmount   Float
   advanceAmount Float         @default(0)
+  travelExpense Float         @default(0)
   paymentStatus PaymentStatus @default(pending)
   completed     Boolean       @default(false)
   notes         String?
+  teamMembers   TeamMember[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([userId, eventDate])
+}
+
+// A supporting/team member assisting on a booking, and their payout for it.
+model TeamMember {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  name      String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
 }
 
 enum RequestStatus {

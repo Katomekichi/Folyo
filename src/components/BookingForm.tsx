@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { BookingInput } from '../types';
+import type { BookingInput, TeamMember } from '../types';
 
 export interface BookingFormInitial {
   clientName?: string | null;
@@ -8,7 +8,21 @@ export interface BookingFormInitial {
   startTime?: string | null;
   totalAmount?: number | null;
   advanceAmount?: number | null;
+  travelExpense?: number | null;
   notes?: string | null;
+  teamMembers?: TeamMember[];
+}
+
+interface TeamMemberRow {
+  id: string;
+  name: string;
+  amount: string;
+}
+
+let teamMemberRowSeq = 0;
+function newTeamMemberRow(): TeamMemberRow {
+  teamMemberRowSeq += 1;
+  return { id: `row-${teamMemberRowSeq}`, name: '', amount: '' };
 }
 
 interface BookingFormProps {
@@ -37,10 +51,28 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
   const [advanceAmount, setAdvanceAmount] = useState(
     initial?.advanceAmount != null ? String(initial.advanceAmount) : '0',
   );
+  const [travelExpense, setTravelExpense] = useState(
+    initial?.travelExpense != null ? String(initial.travelExpense) : '0',
+  );
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [teamMembers, setTeamMembers] = useState<TeamMemberRow[]>(
+    initial?.teamMembers?.map((m) => ({ ...newTeamMemberRow(), name: m.name, amount: String(m.amount) })) ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  function addTeamMember() {
+    setTeamMembers((prev) => [...prev, newTeamMemberRow()]);
+  }
+
+  function updateTeamMember(id: string, patch: Partial<TeamMemberRow>) {
+    setTeamMembers((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function removeTeamMember(id: string) {
+    setTeamMembers((prev) => prev.filter((row) => row.id !== id));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -48,6 +80,7 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
 
     const total = Number(totalAmount);
     const advance = Number(advanceAmount || 0);
+    const travel = Number(travelExpense || 0);
 
     if (!clientName.trim() || !venue.trim() || !eventDate) {
       setError('Client name, venue, and date are required');
@@ -73,6 +106,21 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
       setError('Advance amount cannot be greater than total amount');
       return;
     }
+    if (Number.isNaN(travel) || travel < 0) {
+      setError('Travel expense must be a valid positive number');
+      return;
+    }
+    for (const member of teamMembers) {
+      if (!member.name.trim()) {
+        setError('Each team member needs a name');
+        return;
+      }
+      const amount = Number(member.amount);
+      if (Number.isNaN(amount) || amount < 0) {
+        setError('Each team member amount must be a valid positive number');
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -84,7 +132,9 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
         endTime: addHours(startTime, 3),
         totalAmount: total,
         advanceAmount: advance,
+        travelExpense: travel,
         notes: notes.trim() || undefined,
+        teamMembers: teamMembers.map((m) => ({ name: m.name.trim(), amount: Number(m.amount) })),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save booking');
@@ -147,6 +197,50 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
             onChange={(e) => setAdvanceAmount(e.target.value)}
           />
         </label>
+        <label>
+          Travel expense
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={travelExpense}
+            onChange={(e) => setTravelExpense(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="team-members-section">
+        <div className="team-members-header">
+          <span>Supporting / team members</span>
+          <button type="button" className="btn-ghost" onClick={addTeamMember}>
+            + Add member
+          </button>
+        </div>
+        {teamMembers.map((member) => (
+          <div className="form-row team-member-row" key={member.id}>
+            <label>
+              Name
+              <input
+                value={member.name}
+                onChange={(e) => updateTeamMember(member.id, { name: e.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Amount
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={member.amount}
+                onChange={(e) => updateTeamMember(member.id, { amount: e.target.value })}
+                required
+              />
+            </label>
+            <button type="button" className="btn-ghost btn-danger" onClick={() => removeTeamMember(member.id)}>
+              Remove
+            </button>
+          </div>
+        ))}
       </div>
       <label>
         Notes

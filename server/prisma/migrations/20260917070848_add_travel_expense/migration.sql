@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Booking" ADD COLUMN     "travelExpense" DOUBLE PRECISION NOT NULL DEFAULT 0;

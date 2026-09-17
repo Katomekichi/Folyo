@@ -16,8 +16,6 @@ export function PublicBookingRequest() {
   const [venue, setVenue] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [startTime, setStartTime] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [advanceAmount, setAdvanceAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [website, setWebsite] = useState(''); // honeypot — left blank by real people
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -47,18 +45,6 @@ export function PublicBookingRequest() {
       setError('Enter a valid 10-digit phone number');
       return;
     }
-    if (Number.isNaN(Number(totalAmount)) || Number(totalAmount) < 0) {
-      setError('Total amount must be a valid positive number');
-      return;
-    }
-    if (Number.isNaN(Number(advanceAmount)) || Number(advanceAmount) < 0) {
-      setError('Advance amount must be a valid positive number');
-      return;
-    }
-    if (Number(advanceAmount) > Number(totalAmount)) {
-      setError('Advance amount cannot be greater than total amount');
-      return;
-    }
     if (eventDate < todayStr) {
       setError('Event date cannot be in the past');
       return;
@@ -73,8 +59,6 @@ export function PublicBookingRequest() {
         venue: venue.trim(),
         eventDate,
         startTime,
-        totalAmount: Number(totalAmount),
-        advanceAmount: Number(advanceAmount),
         notes: notes.trim() || undefined,
         website: website || undefined,
       });
@@ -147,30 +131,6 @@ export function PublicBookingRequest() {
           <label>
             Ready Time
             <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
-          </label>
-        </div>
-        <div className="form-row">
-          <label>
-            Total amount
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Advance you're paying
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={advanceAmount}
-              onChange={(e) => setAdvanceAmount(e.target.value)}
-              required
-            />
           </label>
         </div>
         <label>

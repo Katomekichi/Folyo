@@ -12,6 +12,14 @@ const STATUS_LABEL: Record<PaymentStatus, string> = {
 };
 
 type Tab = 'upcoming' | 'done' | 'calendar';
+type PeriodMode = 'all' | 'month' | 'quarter' | 'year';
+
+const QUARTER_LABEL: Record<number, string> = {
+  1: 'Q1 (Jan–Mar)',
+  2: 'Q2 (Apr–Jun)',
+  3: 'Q3 (Jul–Sep)',
+  4: 'Q4 (Oct–Dec)',
+};
 
 function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
@@ -58,6 +66,12 @@ export function Dashboard() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+
+  const now = new Date();
+  const [periodMode, setPeriodMode] = useState<PeriodMode>('all');
+  const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
+  const [periodQuarter, setPeriodQuarter] = useState(Math.floor(now.getMonth() / 3) + 1);
+  const [periodYear, setPeriodYear] = useState(now.getFullYear());
 
   useEffect(() => {
     load();
@@ -208,20 +222,38 @@ export function Dashboard() {
     setActionTarget(null);
   }
 
-  const upcoming = useMemo(() => bookings.filter((b) => !b.completed), [bookings]);
-  const done = useMemo(() => bookings.filter((b) => b.completed), [bookings]);
+  function isInPeriod(eventDateIso: string): boolean {
+    if (periodMode === 'all') return true;
+    const [y, m] = eventDateIso.slice(0, 10).split('-').map(Number);
+    if (periodMode === 'year') return y === periodYear;
+    if (periodMode === 'month') return y === periodYear && m === periodMonth;
+    return y === periodYear && Math.ceil(m / 3) === periodQuarter;
+  }
+
+  const periodBookings = useMemo(
+    () => bookings.filter((b) => isInPeriod(b.eventDate)),
+    [bookings, periodMode, periodMonth, periodQuarter, periodYear],
+  );
+
+  const upcoming = useMemo(() => periodBookings.filter((b) => !b.completed), [periodBookings]);
+  const done = useMemo(() => periodBookings.filter((b) => b.completed), [periodBookings]);
 
   const summary = useMemo(() => {
-    return bookings.reduce(
+    return periodBookings.reduce(
       (acc, b) => {
         acc.total += b.totalAmount;
         acc.collected += b.advanceAmount;
         acc.due += b.totalAmount - b.advanceAmount;
+        // Team payouts are assumed settled once a booking is marked done.
+        if (!b.completed) {
+          acc.teamOwed += b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
+        }
+        acc.travelExpense += b.travelExpense;
         return acc;
       },
-      { total: 0, collected: 0, due: 0 },
+      { total: 0, collected: 0, due: 0, teamOwed: 0, travelExpense: 0 },
     );
-  }, [bookings]);
+  }, [periodBookings]);
 
   let visible: Booking[] = [];
   if (tab === 'upcoming') visible = upcoming;
@@ -229,7 +261,7 @@ export function Dashboard() {
 
   function renderContent() {
     if (loading) return <p>Loading…</p>;
-    if (tab === 'calendar') return <BookingCalendar bookings={bookings} />;
+    if (tab === 'calendar') return <BookingCalendar bookings={periodBookings} />;
     if (visible.length === 0) {
       return (
         <p className="empty-state">
@@ -247,9 +279,11 @@ export function Dashboard() {
               <th>Client</th>
               <th>Venue</th>
               <th>Total</th>
-              <th>Advance</th>
+              {tab !== 'done' && <th>Advance</th>}
               <th>Balance</th>
               <th>Status</th>
+              <th>Travel</th>
+              <th>Team members</th>
               <th>Notes</th>
               <th></th>
             </tr>
@@ -264,10 +298,24 @@ export function Dashboard() {
                 <td>{b.clientName}</td>
                 <td>{b.venue}</td>
                 <td>{formatMoney(b.totalAmount)}</td>
-                <td>{formatMoney(b.advanceAmount)}</td>
+                {tab !== 'done' && <td>{formatMoney(b.advanceAmount)}</td>}
                 <td>{formatMoney(b.totalAmount - b.advanceAmount)}</td>
                 <td>
                   <span className={`status-badge status-${b.paymentStatus}`}>{STATUS_LABEL[b.paymentStatus]}</span>
+                </td>
+                <td>{formatMoney(b.travelExpense)}</td>
+                <td className="team-members-cell">
+                  {b.teamMembers.length === 0 ? (
+                    '—'
+                  ) : (
+                    <ul className="team-members-list">
+                      {b.teamMembers.map((m) => (
+                        <li key={m.id}>
+                          {m.name}: {formatMoney(m.amount)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </td>
                 <td className="notes-cell">{b.notes ?? '—'}</td>
                 <td className="ledger-actions">
@@ -406,10 +454,69 @@ export function Dashboard() {
         )}
       </div>
 
+      <div className="period-filter">
+        <label>
+          Filter by
+          <select value={periodMode} onChange={(e) => setPeriodMode(e.target.value as PeriodMode)}>
+            <option value="all">All time</option>
+            <option value="month">Month</option>
+            <option value="quarter">Quarter</option>
+            <option value="year">Year</option>
+          </select>
+        </label>
+        {periodMode === 'month' && (
+          <label>
+            Month
+            <input
+              type="month"
+              value={`${periodYear}-${String(periodMonth).padStart(2, '0')}`}
+              onChange={(e) => {
+                const [y, m] = e.target.value.split('-').map(Number);
+                if (!y || !m) return;
+                setPeriodYear(y);
+                setPeriodMonth(m);
+              }}
+            />
+          </label>
+        )}
+        {periodMode === 'quarter' && (
+          <>
+            <label>
+              Quarter
+              <select value={periodQuarter} onChange={(e) => setPeriodQuarter(Number(e.target.value))}>
+                {[1, 2, 3, 4].map((q) => (
+                  <option key={q} value={q}>
+                    {QUARTER_LABEL[q]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Year
+              <input
+                type="number"
+                value={periodYear}
+                onChange={(e) => setPeriodYear(Number(e.target.value) || periodYear)}
+              />
+            </label>
+          </>
+        )}
+        {periodMode === 'year' && (
+          <label>
+            Year
+            <input
+              type="number"
+              value={periodYear}
+              onChange={(e) => setPeriodYear(Number(e.target.value) || periodYear)}
+            />
+          </label>
+        )}
+      </div>
+
       <div className="summary-cards">
         <div className="summary-card">
           <span className="summary-label">Total bookings</span>
-          <span className="summary-value">{bookings.length}</span>
+          <span className="summary-value">{periodBookings.length}</span>
         </div>
         <div className="summary-card">
           <span className="summary-label">Total value</span>
@@ -422,6 +529,14 @@ export function Dashboard() {
         <div className="summary-card">
           <span className="summary-label">Balance due</span>
           <span className="summary-value warning">{formatMoney(summary.due)}</span>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Owed to team</span>
+          <span className="summary-value warning">{formatMoney(summary.teamOwed)}</span>
+        </div>
+        <div className="summary-card">
+          <span className="summary-label">Travel expense</span>
+          <span className="summary-value">{formatMoney(summary.travelExpense)}</span>
         </div>
       </div>
 

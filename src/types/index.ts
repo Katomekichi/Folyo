@@ -1,5 +1,16 @@
 export type PaymentStatus = 'pending' | 'partial' | 'paid';
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+export interface TeamMemberInput {
+  name: string;
+  amount: number;
+}
+
 export interface Booking {
   id: string;
   userId: string;
@@ -10,9 +21,11 @@ export interface Booking {
   endTime: string;
   totalAmount: number;
   advanceAmount: number;
+  travelExpense: number;
   paymentStatus: PaymentStatus;
   completed: boolean;
   notes: string | null;
+  teamMembers: TeamMember[];
   createdAt: string;
   updatedAt: string;
 }
@@ -25,7 +38,9 @@ export interface BookingInput {
   endTime: string;
   totalAmount: number;
   advanceAmount: number;
+  travelExpense?: number;
   notes?: string;
+  teamMembers?: TeamMemberInput[];
 }
 
 export interface BookingRequest {
