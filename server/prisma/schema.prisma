@@ -16,6 +16,14 @@ model User {
   bookings       Booking[]
   bookingRequests BookingRequest[]
   publicSlug     String?         @unique
+
+  // Per-artist SMTP account used to send booking-confirmation emails from
+  // their own address. smtpPassEnc is encrypted at rest (see lib/crypto.ts).
+  smtpHost       String?
+  smtpPort       Int?
+  smtpUser       String?
+  smtpPassEnc    String?
+  smtpFrom       String?
 }
 
 enum PaymentStatus {

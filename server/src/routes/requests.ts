@@ -2,6 +2,8 @@ import { Router } from 'express';
 import type { PaymentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { sendBookingConfirmationEmail } from '../lib/email';
+import { decryptSecret } from '../lib/crypto';
 
 export const requestsRouter = Router();
 requestsRouter.use(requireAuth);
@@ -98,6 +100,37 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
     where: { id: request.id },
     data: { status: 'confirmed', resultBookingId: booking.id },
   });
+
+  if (request.clientEmail) {
+    try {
+      const artist = await prisma.user.findUnique({ where: { id: req.userId } });
+      if (artist?.smtpHost && artist.smtpPort && artist.smtpUser && artist.smtpPassEnc) {
+        await sendBookingConfirmationEmail(
+          {
+            host: artist.smtpHost,
+            port: artist.smtpPort,
+            user: artist.smtpUser,
+            pass: decryptSecret(artist.smtpPassEnc),
+            from: artist.smtpFrom,
+          },
+          {
+            clientName: booking.clientName,
+            clientEmail: request.clientEmail,
+            venue: booking.venue,
+            eventDate: booking.eventDate.toISOString().slice(0, 10),
+            startTime: booking.startTime,
+            totalAmount: booking.totalAmount,
+            advanceAmount: booking.advanceAmount,
+          },
+        );
+      } else {
+        console.warn('Artist has no email settings configured — skipping confirmation email');
+      }
+    } catch (err) {
+      // Booking is already confirmed — an email delivery failure shouldn't roll that back.
+      console.error('Failed to send booking confirmation email', err);
+    }
+  }
 
   res.status(201).json({ booking });
 });

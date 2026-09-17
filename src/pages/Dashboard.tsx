@@ -67,6 +67,16 @@ export function Dashboard() {
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState<boolean | undefined>(undefined);
+  const [emailHost, setEmailHost] = useState('');
+  const [emailPort, setEmailPort] = useState('587');
+  const [emailUser, setEmailUser] = useState('');
+  const [emailPass, setEmailPass] = useState('');
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const now = new Date();
   const [periodMode, setPeriodMode] = useState<PeriodMode>('all');
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
@@ -118,6 +128,72 @@ export function Dashboard() {
       setLinkError(err instanceof Error ? err.message : 'Could not disable your booking link');
     } finally {
       setLinkSubmitting(false);
+    }
+  }
+
+  interface EmailSettings {
+    configured: boolean;
+    host: string | null;
+    port: number | null;
+    user: string | null;
+    from: string | null;
+  }
+
+  async function loadEmailSettings() {
+    try {
+      const data = await api.get<EmailSettings>('/api/settings/email');
+      setEmailConfigured(data.configured);
+      setEmailHost(data.host ?? '');
+      setEmailPort(data.port ? String(data.port) : '587');
+      setEmailUser(data.user ?? '');
+      setEmailFrom(data.from ?? '');
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Could not load your email settings');
+    }
+  }
+
+  function openEmailModal() {
+    setShowEmailModal(true);
+    setEmailError(null);
+    setEmailPass('');
+    if (emailConfigured === undefined) loadEmailSettings();
+  }
+
+  async function handleSaveEmail() {
+    setEmailSubmitting(true);
+    setEmailError(null);
+    try {
+      const data = await api.post<EmailSettings>('/api/settings/email', {
+        host: emailHost.trim(),
+        port: Number(emailPort),
+        user: emailUser.trim(),
+        pass: emailPass.trim() || undefined,
+        from: emailFrom.trim() || undefined,
+      });
+      setEmailConfigured(data.configured);
+      setEmailPass('');
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Could not save your email settings');
+    } finally {
+      setEmailSubmitting(false);
+    }
+  }
+
+  async function handleDisconnectEmail() {
+    setEmailSubmitting(true);
+    setEmailError(null);
+    try {
+      await api.delete('/api/settings/email');
+      setEmailConfigured(false);
+      setEmailHost('');
+      setEmailPort('587');
+      setEmailUser('');
+      setEmailFrom('');
+      setEmailPass('');
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Could not disconnect your email account');
+    } finally {
+      setEmailSubmitting(false);
     }
   }
 
@@ -408,6 +484,95 @@ export function Dashboard() {
     );
   }
 
+  function renderEmailModal() {
+    return (
+      <div className="modal-overlay">
+        <div className="modal">
+          <h3>Email settings</h3>
+          <p>
+            Connect your own email account so booking-confirmation emails go out from your address. For Gmail, use
+            an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">app password</a>{' '}
+            (not your regular password) — host <code>smtp.gmail.com</code>, port <code>587</code>.
+          </p>
+          {emailError && <p className="form-error">{emailError}</p>}
+          {emailConfigured === undefined ? (
+            <p>Loading…</p>
+          ) : (
+            <form
+              className="booking-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveEmail();
+              }}
+            >
+              {emailConfigured && <p className="settings-hint">Connected as {emailUser}.</p>}
+              <label>
+                SMTP host
+                <input value={emailHost} onChange={(e) => setEmailHost(e.target.value)} required />
+              </label>
+              <div className="form-row">
+                <label>
+                  Port
+                  <input
+                    type="number"
+                    value={emailPort}
+                    onChange={(e) => setEmailPort(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Email address
+                  <input
+                    type="email"
+                    value={emailUser}
+                    onChange={(e) => setEmailUser(e.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <label>
+                App password
+                <input
+                  type="password"
+                  value={emailPass}
+                  onChange={(e) => setEmailPass(e.target.value)}
+                  placeholder={emailConfigured ? 'Leave blank to keep current password' : ''}
+                  required={!emailConfigured}
+                />
+              </label>
+              <label>
+                From name (optional)
+                <input
+                  value={emailFrom}
+                  onChange={(e) => setEmailFrom(e.target.value)}
+                  placeholder={emailUser || 'your@email.com'}
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" className="btn-ghost" onClick={() => setShowEmailModal(false)}>
+                  Close
+                </button>
+                {emailConfigured && (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-danger"
+                    onClick={handleDisconnectEmail}
+                    disabled={emailSubmitting}
+                  >
+                    Disconnect
+                  </button>
+                )}
+                <button type="submit" disabled={emailSubmitting}>
+                  {emailSubmitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function renderActionModal(target: Booking) {
     return (
       <div className="modal-overlay">
@@ -446,6 +611,9 @@ export function Dashboard() {
           <div className="dashboard-header-actions">
             <button type="button" className="btn-ghost" onClick={openLinkModal}>
               Share booking link
+            </button>
+            <button type="button" className="btn-ghost" onClick={openEmailModal}>
+              Email settings
             </button>
             <button type="button" onClick={() => setShowForm(true)}>
               + Add booking
@@ -612,6 +780,7 @@ export function Dashboard() {
       {pendingSave && renderConflictModal(pendingSave)}
       {actionTarget && renderActionModal(actionTarget)}
       {showLinkModal && renderLinkModal()}
+      {showEmailModal && renderEmailModal()}
     </div>
   );
 }
