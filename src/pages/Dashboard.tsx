@@ -332,7 +332,9 @@ export function Dashboard() {
           acc.teamOwed += b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
         }
         acc.travelExpense += b.travelExpense;
-        acc.netEarnings += netEarning(b);
+        if (b.completed) {
+          acc.netEarnings += netEarning(b);
+        }
         return acc;
       },
       { total: 0, collected: 0, due: 0, teamOwed: 0, travelExpense: 0, netEarnings: 0 },
@@ -634,16 +636,16 @@ export function Dashboard() {
   }
 
   function renderNetEarningsModal() {
-    const sorted = [...periodBookings].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+    const sorted = [...done].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
     return (
       <div className="modal-overlay">
         <div className="modal modal-wide">
           <h3>Net earnings breakdown</h3>
           <p className="modal-hint">
-            How {formatMoney(summary.netEarnings)} in net earnings was arrived at, booking by booking.
+            How {formatMoney(summary.netEarnings)} in net earnings was arrived at, from bookings marked done.
           </p>
           {sorted.length === 0 ? (
-            <p className="empty-state">No bookings in this period yet.</p>
+            <p className="empty-state">No completed bookings in this period yet.</p>
           ) : (
             <ul className="earnings-tree">
               {sorted.map((b) => {
