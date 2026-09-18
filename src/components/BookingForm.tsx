@@ -52,7 +52,7 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
     initial?.advanceAmount != null ? String(initial.advanceAmount) : '0',
   );
   const [travelExpense, setTravelExpense] = useState(
-    initial?.travelExpense != null ? String(initial.travelExpense) : '0',
+    initial?.travelExpense != null ? String(initial.travelExpense) : '',
   );
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [teamMembers, setTeamMembers] = useState<TeamMemberRow[]>(
@@ -106,8 +106,8 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
       setError('Advance amount cannot be greater than total amount');
       return;
     }
-    if (Number.isNaN(travel) || travel < 0) {
-      setError('Travel expense must be a valid positive number');
+    if (travel === null) {
+      setError('Please Fill Travel Charges with a valid Desc');
       return;
     }
     for (const member of teamMembers) {
@@ -198,11 +198,11 @@ export function BookingForm({ initial, submitLabel, onSubmit, onCancel }: Bookin
           />
         </label>
         <label>
-          Travel expense
+          Travel Charges
           <input
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            // min="0"
+            // step="0.01"
             value={travelExpense}
             onChange={(e) => setTravelExpense(e.target.value)}
           />

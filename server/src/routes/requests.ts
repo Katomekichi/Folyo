@@ -121,6 +121,7 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
             startTime: booking.startTime,
             totalAmount: booking.totalAmount,
             advanceAmount: booking.advanceAmount,
+            travelExpense: ''
           },
         );
       } else {

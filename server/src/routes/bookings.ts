@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
 import type { PaymentStatus } from '@prisma/client';
+import { sendBookingCompletedEmail } from '../lib/email';
+import { decryptSecret } from '../lib/crypto';
 
 export const bookingsRouter = Router();
 bookingsRouter.use(requireAuth);
@@ -145,6 +147,42 @@ bookingsRouter.patch('/:id', async (req: AuthedRequest, res) => {
     },
     include: { teamMembers: true },
   });
+
+  if (!existing.completed && booking.completed) {
+    try {
+      const bookingRequest = await prisma.bookingRequest.findFirst({ where: { resultBookingId: booking.id } });
+      if (bookingRequest?.clientEmail) {
+        const artist = await prisma.user.findUnique({ where: { id: req.userId } });
+        if (artist?.smtpHost && artist.smtpPort && artist.smtpUser && artist.smtpPassEnc) {
+          await sendBookingCompletedEmail(
+            {
+              host: artist.smtpHost,
+              port: artist.smtpPort,
+              user: artist.smtpUser,
+              pass: decryptSecret(artist.smtpPassEnc),
+              from: artist.smtpFrom,
+            },
+            {
+              clientName: booking.clientName,
+              clientEmail: bookingRequest.clientEmail,
+              venue: booking.venue,
+              eventDate: booking.eventDate.toISOString().slice(0, 10),
+              startTime: booking.startTime,
+              totalAmount: booking.totalAmount,
+              advanceAmount: booking.advanceAmount,
+              travelExpense: '',
+            },
+          );
+        } else {
+          console.warn('Artist has no email settings configured — skipping completion email');
+        }
+      }
+    } catch (err) {
+      // Booking is already marked completed — an email delivery failure shouldn't roll that back.
+      console.error('Failed to send booking completed email', err);
+    }
+  }
+
   res.json({ booking });
 });
 

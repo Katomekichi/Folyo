@@ -170,6 +170,19 @@
   color: #d97706;
 }
 
+.summary-card-clickable {
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.summary-card-clickable:hover {
+  border-color: var(--accent);
+}
+
 .form-panel {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -506,6 +519,68 @@ input, textarea {
   width: 100%;
 }
 
+.modal-wide {
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.earnings-tree {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.earnings-tree-booking {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.earnings-tree-node {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.earnings-tree-root {
+  font-weight: 600;
+  padding-bottom: 8px;
+}
+
+.earnings-tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 16px;
+  border-left: 2px solid var(--border);
+}
+
+.earnings-tree-muted {
+  opacity: 0.6;
+}
+
+.earnings-tree-net {
+  font-weight: 600;
+  color: var(--success);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.earnings-tree-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 700;
+  padding-top: 12px;
+  border-top: 2px solid var(--border);
+}
+
 .modal h3 {
   margin-top: 0;
 }
@@ -568,6 +643,12 @@ input, textarea {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   opacity: 0.65;
+}
+
+.ledger-table tfoot td {
+  font-weight: 600;
+  border-bottom: none;
+  border-top: 2px solid var(--border);
 }
 
 .notes-cell {

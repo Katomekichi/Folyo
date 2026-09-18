@@ -11,7 +11,12 @@ const STATUS_LABEL: Record<PaymentStatus, string> = {
   paid: 'Paid',
 };
 
-type Tab = 'upcoming' | 'done' | 'calendar';
+type Tab = 'upcoming' | 'done' | 'calendar' | 'balance';
+
+function netEarning(b: Booking): number {
+  const teamPayouts = b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
+  return b.totalAmount - b.travelExpense - teamPayouts;
+}
 type PeriodMode = 'all' | 'month' | 'quarter' | 'year';
 
 const QUARTER_LABEL: Record<number, string> = {
@@ -66,6 +71,8 @@ export function Dashboard() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+
+  const [showNetEarningsModal, setShowNetEarningsModal] = useState(false);
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailConfigured, setEmailConfigured] = useState<boolean | undefined>(undefined);
@@ -325,9 +332,10 @@ export function Dashboard() {
           acc.teamOwed += b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
         }
         acc.travelExpense += b.travelExpense;
+        acc.netEarnings += netEarning(b);
         return acc;
       },
-      { total: 0, collected: 0, due: 0, teamOwed: 0, travelExpense: 0 },
+      { total: 0, collected: 0, due: 0, teamOwed: 0, travelExpense: 0, netEarnings: 0 },
     );
   }, [periodBookings]);
 
@@ -335,9 +343,61 @@ export function Dashboard() {
   if (tab === 'upcoming') visible = upcoming;
   else if (tab === 'done') visible = done;
 
+  function renderBalanceSheet() {
+    if (periodBookings.length === 0) {
+      return <p className="empty-state">No bookings in this period yet.</p>;
+    }
+    return (
+      <div className="ledger-table-wrap">
+        <table className="ledger-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Client</th>
+              <th>Venue</th>
+              <th>Total</th>
+              <th>Travel expense</th>
+              <th>Team payouts</th>
+              <th>Net earning</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {periodBookings.map((b) => {
+              const teamPayouts = b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
+              return (
+                <tr key={b.id}>
+                  <td>{formatDate(b.eventDate)}</td>
+                  <td>{b.clientName}</td>
+                  <td>{b.venue}</td>
+                  <td>{formatMoney(b.totalAmount)}</td>
+                  <td>{formatMoney(b.travelExpense)}</td>
+                  <td>{formatMoney(teamPayouts)}</td>
+                  <td>{formatMoney(netEarning(b))}</td>
+                  <td>{b.completed ? 'Done' : 'Upcoming'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3}>Total</td>
+              <td>{formatMoney(summary.total)}</td>
+              <td>{formatMoney(summary.travelExpense)}</td>
+              <td>{formatMoney(periodBookings.reduce((sum, b) => sum + b.teamMembers.reduce((s, m) => s + m.amount, 0), 0))}</td>
+              <td>{formatMoney(summary.netEarnings)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    );
+  }
+
   function renderContent() {
     if (loading) return <p>Loading…</p>;
     if (tab === 'calendar') return <BookingCalendar bookings={periodBookings} />;
+    if (tab === 'balance') return renderBalanceSheet();
     if (visible.length === 0) {
       return (
         <p className="empty-state">
@@ -488,7 +548,7 @@ export function Dashboard() {
     return (
       <div className="modal-overlay">
         <div className="modal">
-          <h3>Email settings</h3>
+          <h3>Connect Email</h3>
           <p>
             Connect your own email account so booking-confirmation emails go out from your address. For Gmail, use
             an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">app password</a>{' '}
@@ -573,6 +633,71 @@ export function Dashboard() {
     );
   }
 
+  function renderNetEarningsModal() {
+    const sorted = [...periodBookings].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+    return (
+      <div className="modal-overlay">
+        <div className="modal modal-wide">
+          <h3>Net earnings breakdown</h3>
+          <p className="modal-hint">
+            How {formatMoney(summary.netEarnings)} in net earnings was arrived at, booking by booking.
+          </p>
+          {sorted.length === 0 ? (
+            <p className="empty-state">No bookings in this period yet.</p>
+          ) : (
+            <ul className="earnings-tree">
+              {sorted.map((b) => {
+                const teamPayouts = b.teamMembers.reduce((sum, m) => sum + m.amount, 0);
+                return (
+                  <li key={b.id} className="earnings-tree-booking">
+                    <div className="earnings-tree-node earnings-tree-root">
+                      <span>
+                        {formatDate(b.eventDate)} · {b.clientName} — {b.venue}
+                      </span>
+                      <span>{formatMoney(b.totalAmount)}</span>
+                    </div>
+                    <ul className="earnings-tree-children">
+                      <li className="earnings-tree-node">
+                        <span>− Travel expense</span>
+                        <span>{formatMoney(b.travelExpense)}</span>
+                      </li>
+                      {b.teamMembers.length === 0 ? (
+                        <li className="earnings-tree-node earnings-tree-muted">
+                          <span>No team payouts</span>
+                          <span>{formatMoney(0)}</span>
+                        </li>
+                      ) : (
+                        b.teamMembers.map((m) => (
+                          <li key={m.id} className="earnings-tree-node">
+                            <span>− Paid to {m.name}</span>
+                            <span>{formatMoney(m.amount)}</span>
+                          </li>
+                        ))
+                      )}
+                      <li className="earnings-tree-node earnings-tree-net">
+                        <span>= Net from this booking</span>
+                        <span>{formatMoney(b.totalAmount - b.travelExpense - teamPayouts)}</span>
+                      </li>
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="earnings-tree-total">
+            <span>Total net earnings</span>
+            <span>{formatMoney(summary.netEarnings)}</span>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setShowNetEarningsModal(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderActionModal(target: Booking) {
     return (
       <div className="modal-overlay">
@@ -613,7 +738,7 @@ export function Dashboard() {
               Share booking link
             </button>
             <button type="button" className="btn-ghost" onClick={openEmailModal}>
-              Email settings
+              Connect Email
             </button>
             <button type="button" onClick={() => setShowForm(true)}>
               + Add booking
@@ -706,6 +831,10 @@ export function Dashboard() {
           <span className="summary-label">Travel expense</span>
           <span className="summary-value">{formatMoney(summary.travelExpense)}</span>
         </div>
+        <button type="button" className="summary-card summary-card-clickable" onClick={() => setShowNetEarningsModal(true)}>
+          <span className="summary-label">Net earnings</span>
+          <span className="summary-value success">{formatMoney(summary.netEarnings)}</span>
+        </button>
       </div>
 
       {requests.length > 0 && !reviewingRequest && (
@@ -773,6 +902,9 @@ export function Dashboard() {
         <button type="button" className={tab === 'calendar' ? 'tab active' : 'tab'} onClick={() => setTab('calendar')}>
           Calendar
         </button>
+        <button type="button" className={tab === 'balance' ? 'tab active' : 'tab'} onClick={() => setTab('balance')}>
+          Balance Sheet
+        </button>
       </div>
 
       {renderContent()}
@@ -781,6 +913,7 @@ export function Dashboard() {
       {actionTarget && renderActionModal(actionTarget)}
       {showLinkModal && renderLinkModal()}
       {showEmailModal && renderEmailModal()}
+      {showNetEarningsModal && renderNetEarningsModal()}
     </div>
   );
 }
