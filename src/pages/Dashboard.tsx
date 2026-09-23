@@ -102,7 +102,7 @@ export function Dashboard() {
   const [upiVpa, setUpiVpa] = useState('');
   const [upiSubmitting, setUpiSubmitting] = useState(false);
   const [upiError, setUpiError] = useState<string | null>(null);
-  const [upiDirectQr, setUpiDirectQr] = useState<string | null>(null);
+  // const [upiDirectQr, setUpiDirectQr] = useState<string | null>(null);
   const [upiPageQr, setUpiPageQr] = useState<string | null>(null);
 
   const now = new Date();
@@ -312,12 +312,12 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!showUpiModal || !upiConfigured || !upiVpa.trim()) {
-      setUpiDirectQr(null);
+      // setUpiDirectQr(null);
       setUpiPageQr(null);
       return;
     }
-    const directParams = new URLSearchParams({ pa: upiVpa.trim(), pn: user?.name ?? '', cu: 'INR' });
-    QRCode.toDataURL(`upi://pay?${directParams.toString()}`).then(setUpiDirectQr).catch(() => setUpiDirectQr(null));
+    // const directParams = new URLSearchParams({ pa: upiVpa.trim(), pn: user?.name ?? '', cu: 'INR' });
+    // QRCode.toDataURL(`upi://pay?${directParams.toString()}`).then(setUpiDirectQr).catch(() => setUpiDirectQr(null));
 
     if (linkSlug) {
       QRCode.toDataURL(`${window.location.origin}/pay/${linkSlug}`).then(setUpiPageQr).catch(() => setUpiPageQr(null));
