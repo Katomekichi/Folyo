@@ -5,6 +5,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { PublicBookingRequest } from './pages/PublicBookingRequest';
+import { PublicBookingPayment } from './pages/PublicBookingPayment';
+import { PublicPayment } from './pages/PublicPayment';
 import './App.css';
 
 function Header() {
@@ -45,7 +47,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function AppShell() {
   const location = useLocation();
-  const isPublicBookingPage = location.pathname.startsWith('/book/');
+  const isPublicBookingPage = location.pathname.startsWith('/book/') || location.pathname.startsWith('/pay/');
 
   return (
     <div className="app-shell">
@@ -61,6 +63,8 @@ function AppShell() {
             }
           />
           <Route path="/book/:slug" element={<PublicBookingRequest />} />
+          <Route path="/pay/:slug/:bookingId" element={<PublicBookingPayment />} />
+          <Route path="/pay/:slug" element={<PublicPayment />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
         </Routes>

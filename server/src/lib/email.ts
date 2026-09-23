@@ -14,9 +14,10 @@ export interface BookingConfirmationDetails {
   venue: string;
   eventDate: string;
   startTime: string;
-  travelExpense: string;  
+  travelExpense: string;
   totalAmount: number;
   advanceAmount: number;
+  payUrl?: string | null;
 }
 
 export interface BookingCompletedDetails {
@@ -54,6 +55,7 @@ export async function sendBookingConfirmationEmail(
       `Total amount: Rs.${details.totalAmount}`,
       `Advance received: Rs.${details.advanceAmount}`,
       `Balance due: Rs.${balance}`,
+      ...(details.payUrl && balance > 0 ? ['', `Pay online: ${details.payUrl}`] : []),
       '',
       'Thank you for choosing us!',
     ].join('\n'),

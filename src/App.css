@@ -337,6 +337,17 @@ input, textarea {
   line-height: 1.5;
 }
 
+.upi-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+  text-align: center;
+}
+
 .settings-connected {
   display: flex;
   flex-wrap: wrap;

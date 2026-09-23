@@ -105,6 +105,11 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
     try {
       const artist = await prisma.user.findUnique({ where: { id: req.userId } });
       if (artist?.smtpHost && artist.smtpPort && artist.smtpUser && artist.smtpPassEnc) {
+        const payUrl =
+          artist.upiVpa && artist.publicSlug
+            ? `${process.env.CLIENT_ORIGIN ?? 'http://localhost:5173'}/pay/${artist.publicSlug}/${booking.id}`
+            : null;
+
         await sendBookingConfirmationEmail(
           {
             host: artist.smtpHost,
@@ -121,7 +126,8 @@ requestsRouter.post('/:id/confirm', async (req: AuthedRequest, res) => {
             startTime: booking.startTime,
             totalAmount: booking.totalAmount,
             advanceAmount: booking.advanceAmount,
-            travelExpense: ''
+            travelExpense: '',
+            payUrl,
           },
         );
       } else {

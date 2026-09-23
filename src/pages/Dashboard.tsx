@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
 import { api } from '../lib/api';
 import type { Booking, BookingInput, BookingRequest, PaymentStatus } from '../types';
 import { BookingForm } from '../components/BookingForm';
@@ -83,6 +84,26 @@ export function Dashboard() {
   const [emailFrom, setEmailFrom] = useState('');
   const [emailSubmitting, setEmailSubmitting] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Razorpay is disabled for now — UPI QR is the only payment method in
+  // use. State/handlers left in place (commented) in case it's turned back on.
+  //
+  // const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+  // const [razorpayConfigured, setRazorpayConfigured] = useState<boolean | undefined>(undefined);
+  // const [razorpayKeyId, setRazorpayKeyId] = useState('');
+  // const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
+  // const [razorpayWebhookSecret, setRazorpayWebhookSecret] = useState('');
+  // const [razorpayWebhookConfigured, setRazorpayWebhookConfigured] = useState(false);
+  // const [razorpaySubmitting, setRazorpaySubmitting] = useState(false);
+  // const [razorpayError, setRazorpayError] = useState<string | null>(null);
+
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [upiConfigured, setUpiConfigured] = useState<boolean | undefined>(undefined);
+  const [upiVpa, setUpiVpa] = useState('');
+  const [upiSubmitting, setUpiSubmitting] = useState(false);
+  const [upiError, setUpiError] = useState<string | null>(null);
+  const [upiDirectQr, setUpiDirectQr] = useState<string | null>(null);
+  const [upiPageQr, setUpiPageQr] = useState<string | null>(null);
 
   const now = new Date();
   const [periodMode, setPeriodMode] = useState<PeriodMode>('all');
@@ -201,6 +222,135 @@ export function Dashboard() {
       setEmailError(err instanceof Error ? err.message : 'Could not disconnect your email account');
     } finally {
       setEmailSubmitting(false);
+    }
+  }
+
+  // interface RazorpaySettings {
+  //   configured: boolean;
+  //   keyId: string | null;
+  //   webhookConfigured: boolean;
+  //   enabled: boolean;
+  // }
+  //
+  // async function loadRazorpaySettings() {
+  //   try {
+  //     const data = await api.get<RazorpaySettings>('/api/settings/razorpay');
+  //     setRazorpayConfigured(data.configured);
+  //     setRazorpayKeyId(data.keyId ?? '');
+  //     setRazorpayWebhookConfigured(data.webhookConfigured);
+  //   } catch (err) {
+  //     setRazorpayError(err instanceof Error ? err.message : 'Could not load your Razorpay settings');
+  //   }
+  // }
+  //
+  // function openRazorpayModal() {
+  //   setShowRazorpayModal(true);
+  //   setRazorpayError(null);
+  //   setRazorpayKeySecret('');
+  //   setRazorpayWebhookSecret('');
+  //   if (razorpayConfigured === undefined) loadRazorpaySettings();
+  // }
+  //
+  // async function handleSaveRazorpay() {
+  //   setRazorpaySubmitting(true);
+  //   setRazorpayError(null);
+  //   try {
+  //     const data = await api.post<RazorpaySettings>('/api/settings/razorpay', {
+  //       keyId: razorpayKeyId.trim(),
+  //       keySecret: razorpayKeySecret.trim() || undefined,
+  //       webhookSecret: razorpayWebhookSecret.trim() || undefined,
+  //     });
+  //     setRazorpayConfigured(data.configured);
+  //     setRazorpayWebhookConfigured(data.webhookConfigured);
+  //     setRazorpayKeySecret('');
+  //     setRazorpayWebhookSecret('');
+  //   } catch (err) {
+  //     setRazorpayError(err instanceof Error ? err.message : 'Could not save your Razorpay settings');
+  //   } finally {
+  //     setRazorpaySubmitting(false);
+  //   }
+  // }
+  //
+  // async function handleDisconnectRazorpay() {
+  //   setRazorpaySubmitting(true);
+  //   setRazorpayError(null);
+  //   try {
+  //     await api.delete('/api/settings/razorpay');
+  //     setRazorpayConfigured(false);
+  //     setRazorpayKeyId('');
+  //     setRazorpayKeySecret('');
+  //     setRazorpayWebhookSecret('');
+  //     setRazorpayWebhookConfigured(false);
+  //   } catch (err) {
+  //     setRazorpayError(err instanceof Error ? err.message : 'Could not disconnect Razorpay');
+  //   } finally {
+  //     setRazorpaySubmitting(false);
+  //   }
+  // }
+
+  interface UpiSettings {
+    configured: boolean;
+    vpa: string | null;
+  }
+
+  async function loadUpiSettings() {
+    try {
+      const data = await api.get<UpiSettings>('/api/settings/upi');
+      setUpiConfigured(data.configured);
+      setUpiVpa(data.vpa ?? '');
+    } catch (err) {
+      setUpiError(err instanceof Error ? err.message : 'Could not load your UPI settings');
+    }
+  }
+
+  function openUpiModal() {
+    setShowUpiModal(true);
+    setUpiError(null);
+    if (upiConfigured === undefined) loadUpiSettings();
+    if (linkSlug === undefined) loadLink();
+  }
+
+  useEffect(() => {
+    if (!showUpiModal || !upiConfigured || !upiVpa.trim()) {
+      setUpiDirectQr(null);
+      setUpiPageQr(null);
+      return;
+    }
+    const directParams = new URLSearchParams({ pa: upiVpa.trim(), pn: user?.name ?? '', cu: 'INR' });
+    QRCode.toDataURL(`upi://pay?${directParams.toString()}`).then(setUpiDirectQr).catch(() => setUpiDirectQr(null));
+
+    if (linkSlug) {
+      QRCode.toDataURL(`${window.location.origin}/pay/${linkSlug}`).then(setUpiPageQr).catch(() => setUpiPageQr(null));
+    } else {
+      setUpiPageQr(null);
+    }
+  }, [showUpiModal, upiConfigured, upiVpa, linkSlug, user?.name]);
+
+  async function handleSaveUpi() {
+    setUpiSubmitting(true);
+    setUpiError(null);
+    try {
+      const data = await api.post<UpiSettings>('/api/settings/upi', { vpa: upiVpa.trim() });
+      setUpiConfigured(data.configured);
+      setUpiVpa(data.vpa ?? '');
+    } catch (err) {
+      setUpiError(err instanceof Error ? err.message : 'Could not save your UPI ID');
+    } finally {
+      setUpiSubmitting(false);
+    }
+  }
+
+  async function handleDisconnectUpi() {
+    setUpiSubmitting(true);
+    setUpiError(null);
+    try {
+      await api.delete('/api/settings/upi');
+      setUpiConfigured(false);
+      setUpiVpa('');
+    } catch (err) {
+      setUpiError(err instanceof Error ? err.message : 'Could not remove your UPI ID');
+    } finally {
+      setUpiSubmitting(false);
     }
   }
 
@@ -546,6 +696,184 @@ export function Dashboard() {
     );
   }
 
+  // Razorpay is disabled for now — UPI QR is the only payment method in
+  // use. Left in place (commented) in case it's turned back on later.
+  //
+  // function renderRazorpayModal() {
+  //   const webhookUrl = `${import.meta.env.VITE_API_URL ?? 'http://localhost:4000'}/api/webhooks/razorpay/${user?.id}`;
+  //   return (
+  //     <div className="modal-overlay" style={{ display: 'none' }}>
+  //       <div className="modal">
+  //         <h3>Connect Razorpay</h3>
+  //         <p>
+  //           Connect your own{' '}
+  //           <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noreferrer">
+  //             Razorpay account
+  //           </a>{' '}
+  //           so customers can pay you directly from your booking link. Payments settle straight into your account —
+  //           Folyo never touches the money.
+  //         </p>
+  //         {razorpayError && <p className="form-error">{razorpayError}</p>}
+  //         {razorpayConfigured === undefined ? (
+  //           <p>Loading…</p>
+  //         ) : (
+  //           <form
+  //             className="booking-form"
+  //             onSubmit={(e) => {
+  //               e.preventDefault();
+  //               handleSaveRazorpay();
+  //             }}
+  //           >
+  //             {razorpayConfigured && <p className="settings-hint">Connected — Key ID {razorpayKeyId}.</p>}
+  //             <label>
+  //               Key ID
+  //               <input value={razorpayKeyId} onChange={(e) => setRazorpayKeyId(e.target.value)} required />
+  //             </label>
+  //             <label>
+  //               Key secret
+  //               <input
+  //                 type="password"
+  //                 value={razorpayKeySecret}
+  //                 onChange={(e) => setRazorpayKeySecret(e.target.value)}
+  //                 placeholder={razorpayConfigured ? 'Leave blank to keep current secret' : ''}
+  //                 required={!razorpayConfigured}
+  //               />
+  //             </label>
+  //             <label>
+  //               Webhook secret
+  //               <input
+  //                 type="password"
+  //                 value={razorpayWebhookSecret}
+  //                 onChange={(e) => setRazorpayWebhookSecret(e.target.value)}
+  //                 placeholder={razorpayWebhookConfigured ? 'Leave blank to keep current secret' : ''}
+  //               />
+  //             </label>
+  //             <p className="settings-hint">
+  //               In your Razorpay dashboard, add a webhook pointing at <code>{webhookUrl}</code> for the{' '}
+  //               <code>payment.captured</code> and <code>payment.failed</code> events, and paste the secret it gives
+  //               you above.
+  //             </p>
+  //             <div className="modal-actions">
+  //               <button type="button" className="btn-ghost" onClick={() => setShowRazorpayModal(false)}>
+  //                 Close
+  //               </button>
+  //               {razorpayConfigured && (
+  //                 <button
+  //                   type="button"
+  //                   className="btn-ghost btn-danger"
+  //                   onClick={handleDisconnectRazorpay}
+  //                   disabled={razorpaySubmitting}
+  //                 >
+  //                   Disconnect
+  //                 </button>
+  //               )}
+  //               <button type="submit" disabled={razorpaySubmitting}>
+  //                 {razorpaySubmitting ? 'Saving…' : 'Save'}
+  //               </button>
+  //             </div>
+  //           </form>
+  //         )}
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+  function renderUpiModal() {
+    return (
+      <div className="modal-overlay">
+        <div className="modal">
+          <h3>UPI QR payment</h3>
+          <p>
+            Add your own UPI ID and customers on your payment page get a QR code they can scan with any UPI app
+            (Google Pay, PhonePe, Paytm, etc.) to pay you directly. No gateway account needed — but since there's no
+            confirmation webhook, you'll need to mark the booking paid yourself once you see the money land.
+          </p>
+          {upiError && <p className="form-error">{upiError}</p>}
+          {upiConfigured === undefined ? (
+            <p>Loading…</p>
+          ) : (
+            <form
+              className="booking-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveUpi();
+              }}
+            >
+              {upiConfigured && <p className="settings-hint">Connected — {upiVpa}.</p>}
+              <label>
+                UPI ID (VPA)
+                <input
+                  value={upiVpa}
+                  onChange={(e) => setUpiVpa(e.target.value)}
+                  placeholder="yourname@okhdfcbank"
+                  required
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" className="btn-ghost" onClick={() => setShowUpiModal(false)}>
+                  Close
+                </button>
+                {upiConfigured && (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-danger"
+                    onClick={handleDisconnectUpi}
+                    disabled={upiSubmitting}
+                  >
+                    Remove
+                  </button>
+                )}
+                <button type="submit" disabled={upiSubmitting}>
+                  {upiSubmitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* {upiConfigured && upiDirectQr && (
+            <div className="upi-qr-section">
+              <p className="settings-hint">Share this QR — scanning it opens the customer's UPI app directly.</p>
+              <img src={upiDirectQr} alt="Your UPI QR code" width={200} height={200} />
+              <a href={upiDirectQr} download="upi-qr.png">
+                Download QR
+              </a>
+            </div>
+          )} */}
+
+          {upiConfigured && upiPageQr && linkSlug && (
+            <div className="upi-qr-section">
+              <p className="settings-hint">
+                Or share your payment page — customers can pay any amount via UPI, whether or not it's tied to a
+                booking.
+              </p>
+              <img src={upiPageQr} alt="Your payment page QR code" width={200} height={200} />
+              <div className="settings-connected">
+                <input
+                  className="booking-link-field"
+                  value={`${window.location.origin}/pay/${linkSlug}`}
+                  readOnly
+                  onFocus={(e) => e.target.select()}
+                />
+                <button type="button" onClick={() => handleCopyLink(`${window.location.origin}/pay/${linkSlug}`)}>
+                  {linkCopied ? 'Copied!' : 'Copy link'}
+                </button>
+              </div>
+              {/* <a href={upiPageQr} download="payment-page-qr.png">
+                Download QR
+              </a> */}
+            </div>
+          )}
+
+          {upiConfigured && !linkSlug && (
+            <p className="settings-hint">
+              Create a booking link first (Share booking link) to also get a shareable payment-page QR.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function renderEmailModal() {
     return (
       <div className="modal-overlay">
@@ -742,6 +1070,14 @@ export function Dashboard() {
             <button type="button" className="btn-ghost" onClick={openEmailModal}>
               Connect Email
             </button>
+            {/* Razorpay disabled for now — UPI QR is the only payment method in use.
+            <button type="button" className="btn-ghost" onClick={openRazorpayModal}>
+              Connect Razorpay
+            </button>
+            */}
+            <button type="button" className="btn-ghost" onClick={openUpiModal}>
+              Share QR
+            </button>
             <button type="button" onClick={() => setShowForm(true)}>
               + Add booking
             </button>
@@ -915,6 +1251,7 @@ export function Dashboard() {
       {actionTarget && renderActionModal(actionTarget)}
       {showLinkModal && renderLinkModal()}
       {showEmailModal && renderEmailModal()}
+      {showUpiModal && renderUpiModal()}
       {showNetEarningsModal && renderNetEarningsModal()}
     </div>
   );

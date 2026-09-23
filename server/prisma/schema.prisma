@@ -24,6 +24,32 @@ model User {
   smtpUser       String?
   smtpPassEnc    String?
   smtpFrom       String?
+
+  razorpaySetting RazorpaySetting?
+  payments        Payment[]
+
+  // Static UPI QR payment — an alternative to the Razorpay checkout flow
+  // that needs no gateway account. Customers scan the QR (or tap the deep
+  // link) and pay the artist's own UPI ID directly; there's no webhook, so
+  // the artist must mark the booking paid themselves once they see it land.
+  upiVpa         String?
+}
+
+// Per-artist Razorpay credentials used to collect payments into their own
+// Razorpay account. keySecretEnc and webhookSecretEnc are encrypted at rest
+// (see lib/crypto.ts). accountId is the Razorpay linked/connected account id,
+// used when routing payments to this user under Razorpay Route.
+model RazorpaySetting {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyId             String?
+  keySecretEnc      String?
+  webhookSecretEnc  String?
+  accountId         String?
+  enabled           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 enum PaymentStatus {
@@ -64,6 +90,35 @@ model TeamMember {
   createdAt DateTime @default(now())
 
   @@index([bookingId])
+}
+
+enum PaymentGatewayStatus {
+  created
+  paid
+  failed
+}
+
+// A Razorpay order/payment created for a customer paying an artist through
+// the public booking link. bookingId/bookingRequestId are plain references
+// (like BookingRequest.resultBookingId) — not enforced Prisma relations —
+// since a payment may exist before a Booking is confirmed.
+model Payment {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingId         String?
+  bookingRequestId  String?
+  razorpayOrderId   String               @unique
+  razorpayPaymentId String?
+  amount            Float
+  currency          String               @default("INR")
+  status            PaymentGatewayStatus @default(created)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([userId, status])
+  @@index([bookingId])
+  @@index([bookingRequestId])
 }
 
 enum RequestStatus {

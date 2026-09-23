@@ -6,10 +6,17 @@ import { bookingsRouter } from './routes/bookings';
 import { requestsRouter } from './routes/requests';
 import { settingsRouter } from './routes/settings';
 import { publicRouter } from './routes/public';
+// Razorpay is disabled for now — UPI QR is the only payment method in use.
+// import { webhooksRouter } from './routes/webhooks';
 
 const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }));
+
+// Mounted before express.json() — the webhook signature must be verified
+// against the raw request body, not the re-serialized parsed JSON.
+// app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRouter);
+
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
